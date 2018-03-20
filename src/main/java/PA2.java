@@ -165,6 +165,50 @@ public class PA2 {
     }
   }
 
+  static class Job3Mapper extends Mapper<LongWritable, Text, Text, Text> {
+    private final Text unigramKey = new Text();
+    private final Text compValue = new Text();
+
+    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+      String[] inputArray = value.toString().split("\t");
+      String docId = inputArray[0];
+      String uni = inputArray[1];
+      String freq = inputArray[2];
+      String tf = inputArray[3];
+
+      unigramKey.set(uni);
+      compValue.set(docId + "\t" + tf);
+      context.write(unigramKey, compValue);
+    }
+  }
+
+  static class Job3Reducer extends Reducer<Text, Text, Text, Text> {
+    private final Text unigramKey = new Text();
+    private final Text compValue = new Text();
+
+    public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+      ArrayList<String> valuesCopy = new ArrayList<String>();
+      double ni;
+      String tempValue;
+
+      for (Text val : values) {
+        valuesCopy.add(val.toString());
+      }
+
+      ni = valuesCopy.size();
+
+      for (String val : valuesCopy) {
+        String[] inputArray = val.toString().split("\t");
+        String docId = inputArray[0];
+        String tf = inputArray[1];
+        tempValue = docId + "\t" + tf + "\t" + ni;
+        unigramKey.set(key.toString());
+        compValue.set(tempValue);
+        context.write(unigramKey, compValue);
+      }
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
     conf.set("mapred.textoutputformat.separator", "\t");
@@ -173,10 +217,12 @@ public class PA2 {
     Path inputPath = new Path(args[0]);
     Path outputPathTemp1 = new Path(args[1] + "Temp1");
     Path outputPathTemp2 = new Path(args[1] + "Temp2");
+    Path outputPathTemp3 = new Path(args[1] + "Temp3");
     Path outputPath = new Path(args[1]);
 
     Job job1 = Job.getInstance(conf, "pa2_job1");
     Job job2 = Job.getInstance(conf, "pa2_job2");
+    Job job3 = Job.getInstance(conf, "pa2_job3");
 
     job1.setJarByClass(PA2.class);
     job1.setNumReduceTasks(numReduceTask);
@@ -205,7 +251,24 @@ public class PA2 {
       FileInputFormat.addInputPath(job2, outputPathTemp1);
       FileOutputFormat.setOutputPath(job2, outputPathTemp2);
 
-      System.exit(job2.waitForCompletion(true) ? 0 : 1);
+//      System.exit(job2.waitForCompletion(true) ? 0 : 1);
+      if (job2.waitForCompletion(true)) {
+        job3.setJarByClass(PA2.class);
+        job3.setNumReduceTasks(numReduceTask);
+//      job3.setPartitionerClass(PartitionerInitial.class);
+
+        job3.setMapperClass(PA2.Job3Mapper.class);
+        job3.setReducerClass(PA2.Job3Reducer.class);
+
+        job3.setMapOutputKeyClass(Text.class);
+        job3.setMapOutputValueClass(Text.class);
+        job3.setOutputKeyClass(Text.class);
+        job3.setOutputValueClass(Text.class);
+
+        FileInputFormat.addInputPath(job3, outputPathTemp2);
+        FileOutputFormat.setOutputPath(job3, outputPathTemp3);
+        System.exit(job3.waitForCompletion(true) ? 0 : 1);
+      }
     }
   }
 }
