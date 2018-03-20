@@ -5,42 +5,42 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Partitioner;
-import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.StringTokenizer;
 
-public class Profile2 {
+public class PA2 {
 
-  private static class profile2PartitionerInitial extends Partitioner<CompositeGroupKey, IntWritable> {
-    public int getPartition(CompositeGroupKey key, IntWritable value, int numReduceTasks) {
+  public static class CountersClass {
+    public static enum N_COUNTERS {
+      SOMECOUNT
+    }
+  }
+
+  private static class PartitionerInitial extends Partitioner<DocIdUniComKey, IntWritable> {
+    public int getPartition(DocIdUniComKey key, IntWritable value, int numReduceTasks) {
       return Math.abs(key.getDocID().hashCode() % numReduceTasks);
     }
   }
 
-  private static class profile2PartitionerFinal extends Partitioner<CompositeGroupKeyFreq, Text> {
-    public int getPartition(CompositeGroupKeyFreq key, Text value, int numReduceTasks) {
-      return Math.abs(key.getDocID().hashCode() % numReduceTasks);
-    }
-  }
-
-  private static class CompositeGroupKey implements Writable, WritableComparable<CompositeGroupKey> {
+  private static class DocIdUniComKey implements Writable, WritableComparable<DocIdUniComKey> {
     private IntWritable docID = new IntWritable();
     private Text unigram = new Text();
 
-    CompositeGroupKey() {
+    DocIdUniComKey() {
       this.docID = new IntWritable();
       this.unigram = new Text();
     }
 
-    CompositeGroupKey(IntWritable id, Text uni) {
+    DocIdUniComKey(IntWritable id, Text uni) {
       this.docID.set(Integer.parseInt(id.toString()));
       this.unigram.set(uni);
     }
@@ -65,7 +65,7 @@ public class Profile2 {
       return this.unigram;
     }
 
-    public int compareTo(CompositeGroupKey pair) {
+    public int compareTo(DocIdUniComKey pair) {
       int compareValue = this.docID.compareTo(pair.getDocID());
       if (compareValue == 0) {
         compareValue = unigram.compareTo(pair.getUnigram());
@@ -79,59 +79,11 @@ public class Profile2 {
     }
   }
 
-  private static class CompositeGroupKeyFreq implements Writable, WritableComparable<CompositeGroupKeyFreq> {
-    private IntWritable docID = new IntWritable();
-    private IntWritable frequency = new IntWritable();
-
-    CompositeGroupKeyFreq() {
-      this.docID = new IntWritable();
-      this.frequency = new IntWritable();
-    }
-
-    CompositeGroupKeyFreq(IntWritable id, IntWritable freq) {
-      this.docID.set(Integer.parseInt(id.toString()));
-      this.frequency.set(Integer.parseInt(freq.toString()));
-    }
-
-    public void write(DataOutput out) throws IOException {
-      this.docID.write(out);
-      this.frequency.write(out);
-    }
-
-    public void readFields(DataInput in) throws IOException {
-      this.docID = new IntWritable();
-      this.frequency = new IntWritable();
-      this.docID.readFields(in);
-      this.frequency.readFields(in);
-    }
-
-    IntWritable getDocID() {
-      return this.docID;
-    }
-
-    IntWritable getFrequency() {
-      return this.frequency;
-    }
-
-    public int compareTo(CompositeGroupKeyFreq pair) {
-      int compareValue = this.docID.compareTo(pair.getDocID());
-      if (compareValue == 0) {
-        compareValue = frequency.compareTo(pair.getFrequency());
-      }
-      return -1 * compareValue; //descending order
-    }
-
-    @Override
-    public String toString() {
-      return docID.toString() + "\t" + frequency.toString();
-    }
-  }
-
-  static class TokenizerMapper extends Mapper<Object, Text, CompositeGroupKey, IntWritable> {
+  static class Job1Mapper extends Mapper<Object, Text, DocIdUniComKey, IntWritable> {
     private final static IntWritable one = new IntWritable(1);
     private final Text word = new Text();
     private final IntWritable docID = new IntWritable();
-    private CompositeGroupKey cntry = new CompositeGroupKey();
+    private DocIdUniComKey comKey = new DocIdUniComKey();
 
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
       String values[] = value.toString().split("<====>");
@@ -145,18 +97,18 @@ public class Profile2 {
           if (!unigram.equals("")) {
             word.set(unigram);
             docID.set(Integer.parseInt(id));
-            cntry = new CompositeGroupKey(docID, word);
-            context.write(cntry, one);
+            comKey = new DocIdUniComKey(docID, word);
+            context.write(comKey, one);
           }
         }
       }
     }
   }
 
-  static class IntSumReducer extends Reducer<CompositeGroupKey, IntWritable, CompositeGroupKey, IntWritable> {
+  static class Job1Reducer extends Reducer<DocIdUniComKey, IntWritable, DocIdUniComKey, IntWritable> {
     private final IntWritable result = new IntWritable();
 
-    public void reduce(CompositeGroupKey key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
+    public void reduce(DocIdUniComKey key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
       int sum = 0;
       for (IntWritable val : values) {
         sum += val.get();
@@ -167,109 +119,236 @@ public class Profile2 {
     }
   }
 
-  static class FrequencyMapper extends Mapper<LongWritable, Text, CompositeGroupKeyFreq, Text> {
-    private final IntWritable docID = new IntWritable();
-    private final IntWritable sum = new IntWritable();
-    private final Text word = new Text();
-    private CompositeGroupKeyFreq cntry = new CompositeGroupKeyFreq();
+  static class Job2Mapper extends Mapper<LongWritable, Text, IntWritable, Text> {
+    private final IntWritable docId = new IntWritable();
+    private final Text compValue = new Text();
 
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-      String[] valueSplit = value.toString().split("\\t");
-      docID.set(Integer.parseInt(valueSplit[0]));
-      word.set(valueSplit[1]);
-      sum.set(Integer.parseInt(valueSplit[2]));
-      cntry = new CompositeGroupKeyFreq(docID, sum);
-      context.write(cntry, word);
+      String[] inputArray = value.toString().split("\t");
+      String id = inputArray[0];
+      String uni = inputArray[1];
+      String freq = inputArray[2];
+      docId.set(Integer.parseInt(id));
+      compValue.set(uni + "\t" + freq);
+      context.write(docId, compValue);
     }
   }
 
-  static class FrequencyReducer extends Reducer<CompositeGroupKeyFreq, Text, CompositeGroupKey, IntWritable> {
-    private final IntWritable docID = new IntWritable();
-    private final Text word = new Text();
-    private CompositeGroupKey cntry = new CompositeGroupKey();
-    private final IntWritable freq = new IntWritable();
+  static class Job2Reducer extends Reducer<IntWritable, Text, IntWritable, Text> {
+    private final IntWritable docId = new IntWritable();
+    private final Text compValue = new Text();
 
-    public void reduce(CompositeGroupKeyFreq key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-      for (Text value : values) {
-        word.set(value.toString());
-        docID.set(Integer.parseInt(key.getDocID().toString()));
-        freq.set(Integer.parseInt(key.getFrequency().toString()));
-        cntry = new CompositeGroupKey(docID, word);
-        context.write(cntry, freq);
+    public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+      ArrayList<String> valuesCopy = new ArrayList<String>();
+      Set<String> uniqueIDs = new HashSet<String>();
+      double maxFreq = 0;
+      double tf;
+      String tempValue;
+
+      for (Text val : values) {
+        valuesCopy.add(val.toString());
+      }
+
+      for (String val : valuesCopy) {
+        String[] valuesSplit = val.toString().split("\t");
+        int frequency = Integer.parseInt(valuesSplit[1]);
+        if (frequency > maxFreq) {
+          maxFreq = frequency;
+        }
+      }
+
+      for (String val : valuesCopy) {
+        String[] valuesSplit = val.toString().split("\t");
+        String unigram = valuesSplit[0];
+        int frequency = Integer.parseInt(valuesSplit[1]);
+        tf = 0.5 + 0.5 * (frequency / maxFreq);
+        tempValue = unigram + "\t" + frequency + "\t" + tf;
+        compValue.set(tempValue);
+        docId.set(Integer.parseInt(key.toString()));
+        context.write(docId, compValue);
+      }
+
+      if (!uniqueIDs.contains(key.toString())){
+        uniqueIDs.add(key.toString());
+        context.getCounter(CountersClass.N_COUNTERS.SOMECOUNT).increment(1); //Increment the counter
       }
     }
   }
 
-  static class DocIDComparable extends WritableComparator {
-    DocIDComparable() {
-      super(CompositeGroupKey.class, true);
-    }
+  static class Job3Mapper extends Mapper<LongWritable, Text, Text, Text> {
+    private final Text unigramKey = new Text();
+    private final Text compValue = new Text();
 
-    @Override
-    public int compare(WritableComparable w1, WritableComparable w2) {
-      CompositeGroupKey key1 = (CompositeGroupKey) w1;
-      CompositeGroupKey key2 = (CompositeGroupKey) w2;
-      return key1.docID.compareTo(key2.docID);
+    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+      String[] inputArray = value.toString().split("\t");
+      String docId = inputArray[0];
+      String uni = inputArray[1];
+      String freq = inputArray[2];
+      String tf = inputArray[3];
+
+      unigramKey.set(uni);
+      compValue.set(docId + "\t" + tf);
+      context.write(unigramKey, compValue);
     }
   }
 
-  static class DescendingIntComparable extends WritableComparator {
-    DescendingIntComparable() {
-      super(CompositeGroupKeyFreq.class, true);
+  static class Job3Reducer extends Reducer<Text, Text, Text, Text> {
+    private final Text unigramKey = new Text();
+    private final Text compValue = new Text();
+
+    public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+      ArrayList<String> valuesCopy = new ArrayList<String>();
+      double ni;
+      String tempValue;
+
+      for (Text val : values) {
+        valuesCopy.add(val.toString());
+      }
+
+      ni = valuesCopy.size();
+
+      for (String val : valuesCopy) {
+        String[] inputArray = val.toString().split("\t");
+        String docId = inputArray[0];
+        String tf = inputArray[1];
+        tempValue = docId + "\t" + tf + "\t" + ni;
+        unigramKey.set(key.toString());
+        compValue.set(tempValue);
+        context.write(unigramKey, compValue);
+      }
     }
+  }
+
+  static class Job4Mapper extends Mapper<LongWritable, Text, IntWritable, Text> {
+    private final IntWritable docId = new IntWritable();
+    private final Text compValue = new Text();
+
+    private long someCount;
 
     @Override
-    public int compare(WritableComparable w1, WritableComparable w2) {
-      CompositeGroupKeyFreq key1 = (CompositeGroupKeyFreq) w1;
-      CompositeGroupKeyFreq key2 = (CompositeGroupKeyFreq) w2;
-      return key1.compareTo(key2);
+    protected void setup(Context context) throws IOException,
+            InterruptedException {
+      super.setup(context);
+      this.someCount  = context.getConfiguration().getLong(CountersClass.N_COUNTERS.SOMECOUNT.name(), 0);
+    }
+
+    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+      double idf, N, tfidf;
+      String tempValue;
+
+      String[] values = value.toString().split("\t");
+      String unigram = values[0];
+      String id = values[1];
+      double tf = Double.parseDouble(values[2]);
+      double ni = Double.parseDouble(values[3]);
+
+      N = this.someCount;
+      idf = Math.log10(N / ni);
+      tfidf = tf * idf;
+
+      tempValue = unigram + "\t" + tf + "\t" + tfidf;
+      docId.set(Integer.parseInt(id));
+      compValue.set(tempValue);
+      context.write(docId, compValue);
+    }
+  }
+
+  static class Job4Reducer extends Reducer<IntWritable, Text, IntWritable, Text> {
+    private final IntWritable docId = new IntWritable();
+    private final Text compValue = new Text();
+
+    public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+      docId.set(Integer.parseInt(key.toString()));
+
+      for (Text val : values) {
+        compValue.set(val);
+        context.write(docId, compValue);
+      }
     }
   }
 
   public static void main(String[] args) throws Exception {
-    /*
     Configuration conf = new Configuration();
     conf.set("mapred.textoutputformat.separator", "\t");
-    int numReduceTask = 320;
+    int numReduceTask = 28;
 
     Path inputPath = new Path(args[0]);
-    Path outputPathTemp = new Path(args[1] + "Temp");
+    Path outputPathTemp1 = new Path(args[1] + "Temp1");
+    Path outputPathTemp2 = new Path(args[1] + "Temp2");
+    Path outputPathTemp3 = new Path(args[1] + "Temp3");
+    Path outputPathTemp4 = new Path(args[1] + "Temp4");
     Path outputPath = new Path(args[1]);
 
-    Job job1 = Job.getInstance(conf, "profile2_job1");
-    Job job2 = Job.getInstance(conf, "profile2_job2");
+    Job job1 = Job.getInstance(conf, "pa2_job1");
+    Job job2 = Job.getInstance(conf, "pa2_job2");
+    Job job3 = Job.getInstance(conf, "pa2_job3");
+    Job job4 = Job.getInstance(conf, "pa2_job4");
 
-    job1.setJarByClass(Profile2.class);
+    job1.setJarByClass(PA2.class);
     job1.setNumReduceTasks(numReduceTask);
-    job1.setPartitionerClass(profile2PartitionerInitial.class);
+    job1.setPartitionerClass(PartitionerInitial.class);
 
-    job1.setMapperClass(Profile2.TokenizerMapper.class);
-    job1.setReducerClass(Profile2.IntSumReducer.class);
-    job1.setOutputKeyClass(CompositeGroupKey.class);
+    job1.setMapperClass(PA2.Job1Mapper.class);
+    job1.setReducerClass(PA2.Job1Reducer.class);
+    job1.setOutputKeyClass(DocIdUniComKey.class);
     job1.setOutputValueClass(IntWritable.class);
 
     FileInputFormat.addInputPath(job1, inputPath);
-    FileOutputFormat.setOutputPath(job1, outputPathTemp);
+    FileOutputFormat.setOutputPath(job1, outputPathTemp1);
     if (job1.waitForCompletion(true)) {
-      job2.setJarByClass(Profile2.class);
+      job2.setJarByClass(PA2.class);
       job2.setNumReduceTasks(numReduceTask);
-      job2.setPartitionerClass(profile2PartitionerFinal.class);
-      job2.setGroupingComparatorClass(DocIDComparable.class);
-      job2.setSortComparatorClass(DescendingIntComparable.class);
+//      job2.setPartitionerClass(PartitionerInitial.class);
 
-      job2.setMapperClass(Profile2.FrequencyMapper.class);
-      job2.setReducerClass(Profile2.FrequencyReducer.class);
+      job2.setMapperClass(PA2.Job2Mapper.class);
+      job2.setReducerClass(PA2.Job2Reducer.class);
 
-      job2.setMapOutputKeyClass(CompositeGroupKeyFreq.class);
+      job2.setMapOutputKeyClass(IntWritable.class);
       job2.setMapOutputValueClass(Text.class);
+      job2.setOutputKeyClass(IntWritable.class);
+      job2.setOutputValueClass(Text.class);
 
-      job2.setOutputKeyClass(CompositeGroupKey.class);
-      job2.setOutputValueClass(IntWritable.class);
+      FileInputFormat.addInputPath(job2, outputPathTemp1);
+      FileOutputFormat.setOutputPath(job2, outputPathTemp2);
 
-      FileInputFormat.addInputPath(job2, outputPathTemp);
-      FileOutputFormat.setOutputPath(job2, outputPath);
-      System.exit(job2.waitForCompletion(true) ? 0 : 1);
+//      System.exit(job2.waitForCompletion(true) ? 0 : 1);
+      if (job2.waitForCompletion(true)) {
+        job3.setJarByClass(PA2.class);
+        job3.setNumReduceTasks(numReduceTask);
+//      job3.setPartitionerClass(PartitionerInitial.class);
+
+        job3.setMapperClass(PA2.Job3Mapper.class);
+        job3.setReducerClass(PA2.Job3Reducer.class);
+
+        job3.setMapOutputKeyClass(Text.class);
+        job3.setMapOutputValueClass(Text.class);
+        job3.setOutputKeyClass(Text.class);
+        job3.setOutputValueClass(Text.class);
+
+        FileInputFormat.addInputPath(job3, outputPathTemp2);
+        FileOutputFormat.setOutputPath(job3, outputPathTemp3);
+//        System.exit(job3.waitForCompletion(true) ? 0 : 1);
+        if (job3.waitForCompletion(true)) {
+          Counter someCount = job2.getCounters().findCounter(CountersClass.N_COUNTERS.SOMECOUNT);
+          job4.getConfiguration().setLong(CountersClass.N_COUNTERS.SOMECOUNT.name(), someCount.getValue());
+
+          job4.setJarByClass(PA2.class);
+          job4.setNumReduceTasks(numReduceTask);
+//      job4.setPartitionerClass(PartitionerInitial.class);
+
+          job4.setMapperClass(PA2.Job4Mapper.class);
+          job4.setReducerClass(PA2.Job4Reducer.class);
+
+          job4.setMapOutputKeyClass(IntWritable.class);
+          job4.setMapOutputValueClass(Text.class);
+          job4.setOutputKeyClass(IntWritable.class);
+          job4.setOutputValueClass(Text.class);
+
+          FileInputFormat.addInputPath(job4, outputPathTemp3);
+          FileOutputFormat.setOutputPath(job4, outputPathTemp4);
+          System.exit(job4.waitForCompletion(true) ? 0 : 1);
+        }
+      }
     }
-    */
   }
 }
