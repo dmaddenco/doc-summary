@@ -17,7 +17,7 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.StringTokenizer;
 
-public class PA2 {
+public class Profile2 {
 
   private static class profile2PartitionerInitial extends Partitioner<CompositeGroupKey, IntWritable> {
     public int getPartition(CompositeGroupKey key, IntWritable value, int numReduceTasks) {
@@ -230,7 +230,7 @@ public class PA2 {
     /*
     Configuration conf = new Configuration();
     conf.set("mapred.textoutputformat.separator", "\t");
-    int numReduceTask = 6;
+    int numReduceTask = 320;
 
     Path inputPath = new Path(args[0]);
     Path outputPathTemp = new Path(args[1] + "Temp");
