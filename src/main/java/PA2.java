@@ -5,21 +5,25 @@
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.*;
-import org.apache.hadoop.mapreduce.Job;
-import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Partitioner;
-import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.security.SecureRandom;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.StringTokenizer;
 
 public class PA2 {
+
+  public static class CountersClass {
+    public static enum N_COUNTERS {
+      SOMECOUNT
+    }
+  }
 
   private static class PartitionerInitial extends Partitioner<DocIdUniComKey, IntWritable> {
     public int getPartition(DocIdUniComKey key, IntWritable value, int numReduceTasks) {
@@ -136,6 +140,7 @@ public class PA2 {
 
     public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
       ArrayList<String> valuesCopy = new ArrayList<String>();
+      Set<String> uniqueIDs = new HashSet<String>();
       double maxFreq = 0;
       double tf;
       String tempValue;
@@ -161,6 +166,11 @@ public class PA2 {
         compValue.set(tempValue);
         docId.set(Integer.parseInt(key.toString()));
         context.write(docId, compValue);
+      }
+
+      if (!uniqueIDs.contains(key.toString())){
+        uniqueIDs.add(key.toString());
+        context.getCounter(CountersClass.N_COUNTERS.SOMECOUNT).increment(1); //Increment the counter
       }
     }
   }
@@ -209,6 +219,54 @@ public class PA2 {
     }
   }
 
+  static class Job4Mapper extends Mapper<LongWritable, Text, IntWritable, Text> {
+    private final IntWritable docId = new IntWritable();
+    private final Text compValue = new Text();
+
+    private long someCount;
+
+    @Override
+    protected void setup(Context context) throws IOException,
+            InterruptedException {
+      super.setup(context);
+      this.someCount  = context.getConfiguration().getLong(CountersClass.N_COUNTERS.SOMECOUNT.name(), 0);
+    }
+
+    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+      double idf, N, tfidf;
+      String tempValue;
+
+      String[] values = value.toString().split("\t");
+      String unigram = values[0];
+      String id = values[1];
+      double tf = Double.parseDouble(values[2]);
+      double ni = Double.parseDouble(values[3]);
+
+      N = this.someCount;
+      idf = Math.log10(N / ni);
+      tfidf = tf * idf;
+
+      tempValue = unigram + "\t" + tf + "\t" + tfidf;
+      docId.set(Integer.parseInt(id));
+      compValue.set(tempValue);
+      context.write(docId, compValue);
+    }
+  }
+
+  static class Job4Reducer extends Reducer<IntWritable, Text, IntWritable, Text> {
+    private final IntWritable docId = new IntWritable();
+    private final Text compValue = new Text();
+
+    public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+      docId.set(Integer.parseInt(key.toString()));
+
+      for (Text val : values) {
+        compValue.set(val);
+        context.write(docId, compValue);
+      }
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
     conf.set("mapred.textoutputformat.separator", "\t");
@@ -218,11 +276,13 @@ public class PA2 {
     Path outputPathTemp1 = new Path(args[1] + "Temp1");
     Path outputPathTemp2 = new Path(args[1] + "Temp2");
     Path outputPathTemp3 = new Path(args[1] + "Temp3");
+    Path outputPathTemp4 = new Path(args[1] + "Temp4");
     Path outputPath = new Path(args[1]);
 
     Job job1 = Job.getInstance(conf, "pa2_job1");
     Job job2 = Job.getInstance(conf, "pa2_job2");
     Job job3 = Job.getInstance(conf, "pa2_job3");
+    Job job4 = Job.getInstance(conf, "pa2_job4");
 
     job1.setJarByClass(PA2.class);
     job1.setNumReduceTasks(numReduceTask);
@@ -267,7 +327,27 @@ public class PA2 {
 
         FileInputFormat.addInputPath(job3, outputPathTemp2);
         FileOutputFormat.setOutputPath(job3, outputPathTemp3);
-        System.exit(job3.waitForCompletion(true) ? 0 : 1);
+//        System.exit(job3.waitForCompletion(true) ? 0 : 1);
+        if (job3.waitForCompletion(true)) {
+          Counter someCount = job2.getCounters().findCounter(CountersClass.N_COUNTERS.SOMECOUNT);
+          job4.getConfiguration().setLong(CountersClass.N_COUNTERS.SOMECOUNT.name(), someCount.getValue());
+
+          job4.setJarByClass(PA2.class);
+          job4.setNumReduceTasks(numReduceTask);
+//      job4.setPartitionerClass(PartitionerInitial.class);
+
+          job4.setMapperClass(PA2.Job4Mapper.class);
+          job4.setReducerClass(PA2.Job4Reducer.class);
+
+          job4.setMapOutputKeyClass(IntWritable.class);
+          job4.setMapOutputValueClass(Text.class);
+          job4.setOutputKeyClass(IntWritable.class);
+          job4.setOutputValueClass(Text.class);
+
+          FileInputFormat.addInputPath(job4, outputPathTemp3);
+          FileOutputFormat.setOutputPath(job4, outputPathTemp4);
+          System.exit(job4.waitForCompletion(true) ? 0 : 1);
+        }
       }
     }
   }
