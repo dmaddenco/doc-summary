@@ -22,6 +22,7 @@ public class Job1 {
       if (values.length >= 3) {
         String id = values[1];
         String article = values[2];
+        //TODO: Check if needed to split on sentences first
         String unigram = article.toLowerCase().replaceAll("[^a-z0-9 ]", "");
         StringTokenizer itr = new StringTokenizer(unigram);
         while (itr.hasMoreTokens()) {

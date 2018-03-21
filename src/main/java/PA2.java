@@ -2,8 +2,13 @@
  * Created by dmadden on 2/20/18.
  */
 
+import com.sun.tools.javac.api.ClientCodeWrapper;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.filecache.DistributedCache;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
@@ -13,10 +18,12 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Partitioner;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import sun.security.util.DisabledAlgorithmConstraints;
 
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.net.URI;
 
 public class PA2 {
 
@@ -86,6 +93,8 @@ public class PA2 {
     int numReduceTask = 28;
 
     Path inputPath = new Path(args[0]);
+//    Path cachePath = new Path(args[1] + "Cache");
+    Path cachePath;
     Path outputPathTemp1 = new Path(args[1] + "Temp1");
     Path outputPathTemp2 = new Path(args[1] + "Temp2");
     Path outputPathTemp3 = new Path(args[1] + "Temp3");
@@ -96,6 +105,7 @@ public class PA2 {
     Job job2 = Job.getInstance(conf, "pa2_job2");
     Job job3 = Job.getInstance(conf, "pa2_job3");
     Job job4 = Job.getInstance(conf, "pa2_job4");
+    Job job5 = Job.getInstance(conf, "pa2_job5");
 
     job1.setJarByClass(PA2.class);
     job1.setNumReduceTasks(numReduceTask);
@@ -128,7 +138,7 @@ public class PA2 {
       if (job2.waitForCompletion(true)) {
         job3.setJarByClass(PA2.class);
         job3.setNumReduceTasks(numReduceTask);
-//      job3.setPartitionerClass(PartitionerInitial.class);
+//        job3.setPartitionerClass(PartitionerInitial.class);
 
         job3.setMapperClass(Job3.Job3Mapper.class);
         job3.setReducerClass(Job3.Job3Reducer.class);
@@ -147,7 +157,7 @@ public class PA2 {
 
           job4.setJarByClass(PA2.class);
           job4.setNumReduceTasks(numReduceTask);
-//      job4.setPartitionerClass(PartitionerInitial.class);
+//          job4.setPartitionerClass(PartitionerInitial.class);
 
           job4.setMapperClass(Job4.Job4Mapper.class);
           job4.setReducerClass(Job4.Job4Reducer.class);
@@ -159,7 +169,37 @@ public class PA2 {
 
           FileInputFormat.addInputPath(job4, outputPathTemp3);
           FileOutputFormat.setOutputPath(job4, outputPathTemp4);
-          System.exit(job4.waitForCompletion(true) ? 0 : 1);
+//          System.exit(job4.waitForCompletion(true) ? 0 : 1);
+          if (job4.waitForCompletion(true)) {
+            FileSystem fs = FileSystem.get(conf);
+            FileStatus[] fileList = fs.listStatus((outputPathTemp4),
+                    new PathFilter() {
+                      public boolean accept(Path path) {
+                        return path.getName().startsWith("part-");
+                      }
+                    });
+            for(int i=0; i < fileList.length;i++){
+              job5.addCacheFile((fileList[i].getPath().toUri()));
+            }
+
+//            job5.addCacheFile(outputPathTemp4.toUri());
+
+            job5.setJarByClass(PA2.class);
+            job5.setNumReduceTasks(numReduceTask);
+//            job5.setPartitionerClass(PartitionerInitial.class);
+
+            job5.setMapperClass(Job5.Job5Mapper.class);
+            job5.setReducerClass(Job5.Job5Reducer.class);
+
+            job5.setMapOutputKeyClass(IntWritable.class);
+            job5.setMapOutputValueClass(Text.class);
+            job5.setOutputKeyClass(IntWritable.class);
+            job5.setOutputValueClass(Text.class);
+
+            FileInputFormat.addInputPath(job5, inputPath);
+            FileOutputFormat.setOutputPath(job5, outputPath);
+            System.exit(job5.waitForCompletion(true) ? 0 : 1);
+          }
         }
       }
     }
