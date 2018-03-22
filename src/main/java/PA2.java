@@ -24,7 +24,7 @@ import java.io.IOException;
 public class PA2 {
 
   public static class CountersClass {
-    public static enum N_COUNTERS {
+    public enum N_COUNTERS {
       SOMECOUNT
     }
   }
@@ -169,8 +169,8 @@ public class PA2 {
                         return path.getName().startsWith("part-");
                       }
                     });
-            for(int i=0; i < fileList.length;i++){
-              job5.addCacheFile((fileList[i].getPath().toUri()));
+            for (FileStatus aFileList : fileList) {
+              job5.addCacheFile((aFileList.getPath().toUri()));
             }
 
             job5.setJarByClass(PA2.class);

@@ -18,9 +18,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeMap;
 
-public class Job5 {
+class Job5 {
   private static HashMap<String, String> idUniToValue = new HashMap<String, String>();
-  private static TreeMap<String, Double> top5Words = new TreeMap<String, Double>();
 
   static class Job5Mapper extends Mapper<LongWritable, Text, IntWritable, Text> {
     private final Text compValue = new Text();
@@ -32,9 +31,9 @@ public class Job5 {
       if (cacheFiles != null && cacheFiles.length > 0) {
         try {
           BufferedReader reader = null;
-          for (int i = 0; i < cacheFiles.length; i++) {
+          for (URI cacheFile1 : cacheFiles) {
             try {
-              File cacheFile = new File(cacheFiles[i].getPath());
+              File cacheFile = new File(cacheFile1.getPath());
               reader = new BufferedReader(new FileReader(cacheFile));
               String line;
               while ((line = reader.readLine()) != null) {
@@ -75,7 +74,7 @@ public class Job5 {
 
         for (int i = 0; i < sentences.length; i++) {
           String sentence = sentences[i];
-          top5Words = new TreeMap<String, Double>();
+          TreeMap<String, Double> top5Words = new TreeMap<String, Double>();
 
           if (!sentence.equals("")) {
             StringTokenizer itrWord = new StringTokenizer(sentence);

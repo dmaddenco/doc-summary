@@ -10,7 +10,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import java.io.IOException;
 import java.util.ArrayList;
 
-public class Job3 {
+class Job3 {
   static class Job3Mapper extends Mapper<LongWritable, Text, Text, Text> {
     private final Text unigramKey = new Text();
     private final Text compValue = new Text();
@@ -44,7 +44,7 @@ public class Job3 {
       ni = valuesCopy.size();
 
       for (String val : valuesCopy) {
-        String[] inputArray = val.toString().split("\t");
+        String[] inputArray = val.split("\t");
         String docId = inputArray[0];
         String tf = inputArray[1];
         tempValue = docId + "\t" + tf + "\t" + ni;

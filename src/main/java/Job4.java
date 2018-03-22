@@ -10,7 +10,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 
 import java.io.IOException;
 
-public class Job4 {
+class Job4 {
   static class Job4Mapper extends Mapper<LongWritable, Text, IntWritable, Text> {
     private final IntWritable docId = new IntWritable();
     private final Text compValue = new Text();

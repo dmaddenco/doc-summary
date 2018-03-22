@@ -10,7 +10,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import java.io.IOException;
 import java.util.StringTokenizer;
 
-public class Job1 {
+class Job1 {
   static class Job1Mapper extends Mapper<Object, Text, PA2.DocIdUniComKey, IntWritable> {
     private final static IntWritable one = new IntWritable(1);
     private final Text word = new Text();
@@ -25,9 +25,7 @@ public class Job1 {
         String article = values[2];
         String[] sentences = article.split("\\.");
 
-        for (int i = 0; i < sentences.length; i++) {
-          String sentence = sentences[i];
-
+        for (String sentence : sentences) {
           if (!sentence.equals("")) {
             StringTokenizer itrWord = new StringTokenizer(sentence);
 
