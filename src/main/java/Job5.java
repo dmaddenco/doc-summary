@@ -14,17 +14,17 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.net.URI;
 import java.util.HashMap;
+import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.TreeMap;
 
 public class Job5 {
-  private static HashMap<String, String> hmap = new HashMap<String, String>();
+  private static HashMap<String, String> idUniToValue = new HashMap<String, String>();
+  private static TreeMap<String, Double> top5Words = new TreeMap<String, Double>();
 
-  static class Job5Mapper extends Mapper<LongWritable, Text, PA2.DocIdUniComKey, Text> {
-    private PA2.DocIdUniComKey comKey = new PA2.DocIdUniComKey();
+  static class Job5Mapper extends Mapper<LongWritable, Text, IntWritable, Text> {
     private final Text compValue = new Text();
-    private final Text word = new Text();
     private final IntWritable docID = new IntWritable();
-    private final static IntWritable one = new IntWritable(1);
 
     @Override
     public void setup(Context context) throws IOException {
@@ -38,7 +38,6 @@ public class Job5 {
               reader = new BufferedReader(new FileReader(cacheFile));
               String line;
               while ((line = reader.readLine()) != null) {
-                System.out.println(line);
                 String[] lineInfo = line.split("\t");
                 String docId = lineInfo[0];
                 String unigram = lineInfo[1];
@@ -48,7 +47,7 @@ public class Job5 {
                 String key = docId + "\t" + unigram;
                 String value = tf + "\t" + tfid;
 
-                hmap.put(key, value);
+                idUniToValue.put(key, value);
               }
             } catch (IOException e) {
               e.printStackTrace();
@@ -67,40 +66,106 @@ public class Job5 {
     }
 
     public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-      //TODO: Code to read text input, then: split on period, tokenize to get unigram.
       String values[] = value.toString().split("<====>");
+
       if (values.length >= 3) {
         String id = values[1];
         String article = values[2];
-        //TODO: Check if needed to split on sentences first
-        String unigram = article.toLowerCase().replaceAll("[^a-z0-9. ]", "");
-        StringTokenizer itr = new StringTokenizer(unigram, ".");
-        while (itr.hasMoreTokens()) {
-          unigram = itr.nextToken();
-          if (!unigram.equals("")) {
-//            word.set(unigram);
-//            docID.set(Integer.parseInt(id));
-//            comKey = new PA2.DocIdUniComKey(docID, word);
-//            context.write(comKey, compValue);
+        String[] sentences = article.split("\\.");
+
+        for (int i = 0; i < sentences.length; i++) {
+          String sentence = sentences[i];
+          top5Words = new TreeMap<String, Double>();
+
+          if (!sentence.equals("")) {
+            StringTokenizer itrWord = new StringTokenizer(sentence);
+
+            while (itrWord.hasMoreTokens()) {
+              String originalWord = itrWord.nextToken();
+              String stripWord = originalWord.toLowerCase().replaceAll("[^a-z0-9. ]", "");
+              String lookup = id + "\t" + stripWord;
+              String comKey = id + "\t" + originalWord;
+
+              if (!stripWord.equals("") && !top5Words.containsKey(comKey)) {
+                double tfidf = Double.parseDouble(idUniToValue.get(lookup).split("\t")[1]);
+                top5Words.put(comKey, tfidf);
+
+                if (top5Words.size() > 5) {
+                  top5Words.remove(top5Words.firstKey());
+                }
+              }
+            }
           }
+
+          double sentenceTFIDF = 0;
+          for (double f : top5Words.values()) {
+            sentenceTFIDF += f;
+          }
+
+          String tab = "\t";
+          if (sentence.contains(tab)) {
+            sentence = sentence.replaceAll(tab, " ");
+          }
+
+          String tempValue = i + "\t" + sentence + "\t" + sentenceTFIDF;
+          docID.set(Integer.parseInt(id));
+          compValue.set(tempValue);
+          context.write(docID, compValue);
         }
       }
-
-      //TODO: Join from distributed cache on <compKey, value> pair
-      //TODO: Get TFIDF for each unigram, select top 5 TFIDF values, calculate Sentence-TFIDF for each sentence
-
-      //TODO: Write output: <docID, {sentence, Sentence-TFIDF}>
     }
   }
 
   static class Job5Reducer extends Reducer<IntWritable, Text, IntWritable, Text> {
+    private static TreeMap<String, Double> top3 = new TreeMap<String, Double>();
+    private static TreeMap<Double, String> top3TFIDF = new TreeMap<Double, String>();
     private final IntWritable docId = new IntWritable();
-    private final Text compValue = new Text();
+    private final Text top3Sentences = new Text();
 
     public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
-      //TODO: Code to select top 3 sentences
+      top3 = new TreeMap<String, Double>();
+      top3TFIDF = new TreeMap<Double, String>();
 
-      //TODO: Write output: <docID, (top 3 sentences)>
+      for (Text sentenceAndTFIDF : values) {
+
+        if (!top3.containsKey(sentenceAndTFIDF.toString())) {
+          String[] sentenceInfo = sentenceAndTFIDF.toString().split("\t");
+          String sentenceOrder = sentenceInfo[0];
+          String sentence = sentenceInfo[1];
+          double tfidf = Double.parseDouble(sentenceInfo[2]);
+          top3.put(sentenceOrder + "\t" + sentence, tfidf);
+          top3TFIDF.put(tfidf, sentenceOrder + "\t" + sentence);
+
+          if (top3.size() > 3) {
+            Double lowestValue = top3TFIDF.firstKey();
+            String mapKey = null;
+            Set<String> keys = top3.keySet();
+
+            for (String k : keys) {
+              if (top3.get(k).equals(lowestValue)) {
+                top3TFIDF.remove(lowestValue);
+                mapKey = k;
+                break;
+              }
+            }
+
+            top3.remove(mapKey);
+          }
+        }
+      }
+
+      String tempValue = "";
+      Set<String> keys = top3.keySet();
+      for (String k : keys) {
+        String[] kContent = k.split("\t");
+        if (kContent.length == 2) {
+          tempValue += kContent[1] + ".";
+        }
+      }
+
+      docId.set(Integer.parseInt(key.toString()));
+      top3Sentences.set(tempValue);
+      context.write(docId, top3Sentences);
     }
   }
 }
