@@ -129,6 +129,8 @@ public class PA2 {
       FileOutputFormat.setOutputPath(job2, outputPathTemp2);
 
       if (job2.waitForCompletion(true)) {
+    	Counter count = job2.getCounters().findCounter(CountersClass.N_COUNTERS.SOMECOUNT);
+          
         job3.setJarByClass(PA2.class);
         job3.setNumReduceTasks(numReduceTask);
 
@@ -144,8 +146,7 @@ public class PA2 {
         FileOutputFormat.setOutputPath(job3, outputPathTemp3);
 
         if (job3.waitForCompletion(true)) {
-          Counter someCount = job2.getCounters().findCounter(CountersClass.N_COUNTERS.SOMECOUNT);
-          job4.getConfiguration().setLong(CountersClass.N_COUNTERS.SOMECOUNT.name(), someCount.getValue());
+          job4.getConfiguration().setLong(CountersClass.N_COUNTERS.SOMECOUNT.name(), count.getValue());
 
           job4.setJarByClass(PA2.class);
           job4.setNumReduceTasks(numReduceTask);

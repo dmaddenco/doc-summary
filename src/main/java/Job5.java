@@ -86,9 +86,13 @@ class Job5 {
               String comKey = id + "\t" + originalWord;
 
               if (!stripWord.equals("") && !top5Words.containsKey(comKey)) {
-                double tfidf = Double.parseDouble(idUniToValue.get(lookup).split("\t")[1]);
-                top5Words.put(comKey, tfidf);
-
+            	try {
+                  double tfidf = Double.parseDouble(idUniToValue.get(lookup).split("\t")[1]);
+                  top5Words.put(comKey, tfidf);
+                } catch (NullPointerException e) {
+                  
+                }
+            	
                 if (top5Words.size() > 5) {
                   top5Words.remove(top5Words.firstKey());
                 }
