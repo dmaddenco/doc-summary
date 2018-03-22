@@ -10,7 +10,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import java.io.IOException;
 import java.util.StringTokenizer;
 
-public class Job1 {
+class Job1 {
   static class Job1Mapper extends Mapper<Object, Text, PA2.DocIdUniComKey, IntWritable> {
     private final static IntWritable one = new IntWritable(1);
     private final Text word = new Text();
@@ -19,18 +19,24 @@ public class Job1 {
 
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
       String values[] = value.toString().split("<====>");
+
       if (values.length >= 3) {
         String id = values[1];
         String article = values[2];
-        String unigram = article.toLowerCase().replaceAll("[^a-z0-9 ]", "");
-        StringTokenizer itr = new StringTokenizer(unigram);
-        while (itr.hasMoreTokens()) {
-          unigram = itr.nextToken();
-          if (!unigram.equals("")) {
-            word.set(unigram);
-            docID.set(Integer.parseInt(id));
-            comKey = new PA2.DocIdUniComKey(docID, word);
-            context.write(comKey, one);
+        String[] sentences = article.split("\\.");
+
+        for (String sentence : sentences) {
+          if (!sentence.equals("")) {
+            StringTokenizer itrWord = new StringTokenizer(sentence);
+
+            while (itrWord.hasMoreTokens()) {
+              String unigram = itrWord.nextToken().toLowerCase().replaceAll("[^a-z0-9. ]", "");
+              word.set(unigram);
+              docID.set(Integer.parseInt(id));
+              comKey = new PA2.DocIdUniComKey(docID, word);
+              context.write(comKey, one);
+            }
+
           }
         }
       }
@@ -42,11 +48,12 @@ public class Job1 {
 
     public void reduce(PA2.DocIdUniComKey key, Iterable<IntWritable> values, Context context) throws IOException, InterruptedException {
       int sum = 0;
+
       for (IntWritable val : values) {
         sum += val.get();
       }
+
       result.set(sum);
-      System.out.println(key.toString());
       context.write(key, result);
     }
   }

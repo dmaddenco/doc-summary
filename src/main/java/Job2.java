@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
-public class Job2 {
+class Job2 {
   static class Job2Mapper extends Mapper<LongWritable, Text, IntWritable, Text> {
     private final IntWritable docId = new IntWritable();
     private final Text compValue = new Text();
@@ -45,7 +45,7 @@ public class Job2 {
       }
 
       for (String val : valuesCopy) {
-        String[] valuesSplit = val.toString().split("\t");
+        String[] valuesSplit = val.split("\t");
         int frequency = Integer.parseInt(valuesSplit[1]);
         if (frequency > maxFreq) {
           maxFreq = frequency;
@@ -53,7 +53,7 @@ public class Job2 {
       }
 
       for (String val : valuesCopy) {
-        String[] valuesSplit = val.toString().split("\t");
+        String[] valuesSplit = val.split("\t");
         String unigram = valuesSplit[0];
         int frequency = Integer.parseInt(valuesSplit[1]);
         tf = 0.5 + 0.5 * (frequency / maxFreq);

@@ -3,7 +3,10 @@
  */
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.PathFilter;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
@@ -21,7 +24,7 @@ import java.io.IOException;
 public class PA2 {
 
   public static class CountersClass {
-    public static enum N_COUNTERS {
+    public enum N_COUNTERS {
       SOMECOUNT
     }
   }
@@ -83,7 +86,7 @@ public class PA2 {
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
     conf.set("mapred.textoutputformat.separator", "\t");
-    int numReduceTask = 28;
+    int numReduceTask = 32;
 
     Path inputPath = new Path(args[0]);
     Path outputPathTemp1 = new Path(args[1] + "Temp1");
@@ -96,6 +99,7 @@ public class PA2 {
     Job job2 = Job.getInstance(conf, "pa2_job2");
     Job job3 = Job.getInstance(conf, "pa2_job3");
     Job job4 = Job.getInstance(conf, "pa2_job4");
+    Job job5 = Job.getInstance(conf, "pa2_job5");
 
     job1.setJarByClass(PA2.class);
     job1.setNumReduceTasks(numReduceTask);
@@ -108,10 +112,10 @@ public class PA2 {
 
     FileInputFormat.addInputPath(job1, inputPath);
     FileOutputFormat.setOutputPath(job1, outputPathTemp1);
+
     if (job1.waitForCompletion(true)) {
       job2.setJarByClass(PA2.class);
       job2.setNumReduceTasks(numReduceTask);
-//      job2.setPartitionerClass(PartitionerInitial.class);
 
       job2.setMapperClass(Job2.Job2Mapper.class);
       job2.setReducerClass(Job2.Job2Reducer.class);
@@ -124,11 +128,9 @@ public class PA2 {
       FileInputFormat.addInputPath(job2, outputPathTemp1);
       FileOutputFormat.setOutputPath(job2, outputPathTemp2);
 
-//      System.exit(job2.waitForCompletion(true) ? 0 : 1);
       if (job2.waitForCompletion(true)) {
         job3.setJarByClass(PA2.class);
         job3.setNumReduceTasks(numReduceTask);
-//      job3.setPartitionerClass(PartitionerInitial.class);
 
         job3.setMapperClass(Job3.Job3Mapper.class);
         job3.setReducerClass(Job3.Job3Reducer.class);
@@ -140,14 +142,13 @@ public class PA2 {
 
         FileInputFormat.addInputPath(job3, outputPathTemp2);
         FileOutputFormat.setOutputPath(job3, outputPathTemp3);
-//        System.exit(job3.waitForCompletion(true) ? 0 : 1);
+
         if (job3.waitForCompletion(true)) {
           Counter someCount = job2.getCounters().findCounter(CountersClass.N_COUNTERS.SOMECOUNT);
           job4.getConfiguration().setLong(CountersClass.N_COUNTERS.SOMECOUNT.name(), someCount.getValue());
 
           job4.setJarByClass(PA2.class);
           job4.setNumReduceTasks(numReduceTask);
-//      job4.setPartitionerClass(PartitionerInitial.class);
 
           job4.setMapperClass(Job4.Job4Mapper.class);
           job4.setReducerClass(Job4.Job4Reducer.class);
@@ -159,7 +160,34 @@ public class PA2 {
 
           FileInputFormat.addInputPath(job4, outputPathTemp3);
           FileOutputFormat.setOutputPath(job4, outputPathTemp4);
-          System.exit(job4.waitForCompletion(true) ? 0 : 1);
+
+          if (job4.waitForCompletion(true)) {
+            FileSystem fs = FileSystem.get(conf);
+            FileStatus[] fileList = fs.listStatus((outputPathTemp4),
+                    new PathFilter() {
+                      public boolean accept(Path path) {
+                        return path.getName().startsWith("part-");
+                      }
+                    });
+            for (FileStatus aFileList : fileList) {
+              job5.addCacheFile((aFileList.getPath().toUri()));
+            }
+
+            job5.setJarByClass(PA2.class);
+            job5.setNumReduceTasks(numReduceTask);
+
+            job5.setMapperClass(Job5.Job5Mapper.class);
+            job5.setReducerClass(Job5.Job5Reducer.class);
+
+            job5.setMapOutputKeyClass(IntWritable.class);
+            job5.setMapOutputValueClass(Text.class);
+            job5.setOutputKeyClass(IntWritable.class);
+            job5.setOutputValueClass(Text.class);
+
+            FileInputFormat.addInputPath(job5, inputPath);
+            FileOutputFormat.setOutputPath(job5, outputPath);
+            System.exit(job5.waitForCompletion(true) ? 0 : 1);
+          }
         }
       }
     }
