@@ -75,6 +75,7 @@ class Job5 {
         for (int i = 0; i < sentences.length; i++) {
           String sentence = sentences[i];
           TreeMap<String, Double> top5Words = new TreeMap<String, Double>();
+          TreeMap<Double, String> top5WordsTFIDF = new TreeMap<Double, String>();
 
           if (!sentence.equals("")) {
             StringTokenizer itrWord = new StringTokenizer(sentence);
@@ -86,15 +87,14 @@ class Job5 {
               String comKey = id + "\t" + originalWord;
 
               if (!stripWord.equals("") && !top5Words.containsKey(comKey)) {
-            	try {
-                  double tfidf = Double.parseDouble(idUniToValue.get(lookup).split("\t")[1]);
-                  top5Words.put(comKey, tfidf);
-                } catch (NullPointerException e) {
-                  
-                }
-            	
+                double tfidf = Double.parseDouble(idUniToValue.get(lookup).split("\t")[1]);
+                top5Words.put(comKey, tfidf);
+                top5WordsTFIDF.put(tfidf, comKey);
+
                 if (top5Words.size() > 5) {
-                  top5Words.remove(top5Words.firstKey());
+                  String firstKey = top5WordsTFIDF.get(top5WordsTFIDF.firstKey());
+                  top5Words.remove(firstKey);
+                  top5WordsTFIDF.remove(top5WordsTFIDF.firstKey());
                 }
               }
             }
@@ -110,6 +110,7 @@ class Job5 {
             sentence = sentence.replaceAll(tab, " ");
           }
 
+          sentence = sentence.replaceAll("\\s+", " ");
           String tempValue = i + "\t" + sentence + "\t" + sentenceTFIDF;
           docID.set(Integer.parseInt(id));
           compValue.set(tempValue);
