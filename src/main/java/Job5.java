@@ -1,3 +1,4 @@
+
 /**
  * Created by dmadden on 2/20/18.
  */
@@ -82,19 +83,23 @@ class Job5 {
 
             while (itrWord.hasMoreTokens()) {
               String originalWord = itrWord.nextToken();
-              String stripWord = originalWord.toLowerCase().replaceAll("[^a-z0-9. ]", "");
+              String stripWord = originalWord.toLowerCase().replaceAll("[^a-z0-9 ]", "");
               String lookup = id + "\t" + stripWord;
               String comKey = id + "\t" + originalWord;
 
               if (!stripWord.equals("") && !top5Words.containsKey(comKey)) {
-                double tfidf = Double.parseDouble(idUniToValue.get(lookup).split("\t")[1]);
-                top5Words.put(comKey, tfidf);
-                top5WordsTFIDF.put(tfidf, comKey);
+                try {
+                  double tfidf = Double.parseDouble(idUniToValue.get(lookup).split("\t")[1]);
+                  top5Words.put(comKey, tfidf);
+                  top5WordsTFIDF.put(tfidf, comKey);
 
-                if (top5Words.size() > 5) {
-                  String firstKey = top5WordsTFIDF.get(top5WordsTFIDF.firstKey());
-                  top5Words.remove(firstKey);
-                  top5WordsTFIDF.remove(top5WordsTFIDF.firstKey());
+                  if (top5Words.size() > 5) {
+                    String firstKey = top5WordsTFIDF.get(top5WordsTFIDF.firstKey());
+                    top5Words.remove(firstKey);
+                    top5WordsTFIDF.remove(top5WordsTFIDF.firstKey());
+                  }
+                } catch (NullPointerException e) {
+
                 }
               }
             }
@@ -126,7 +131,8 @@ class Job5 {
     private final IntWritable docId = new IntWritable();
     private final Text top3Sentences = new Text();
 
-    public void reduce(IntWritable key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+    public void reduce(IntWritable key, Iterable<Text> values, Context context)
+        throws IOException, InterruptedException {
       top3 = new TreeMap<String, Double>();
       top3TFIDF = new TreeMap<Double, String>();
 

@@ -30,7 +30,7 @@ class Job1 {
             StringTokenizer itrWord = new StringTokenizer(sentence);
 
             while (itrWord.hasMoreTokens()) {
-              String unigram = itrWord.nextToken().toLowerCase().replaceAll("[^a-z0-9. ]", "");
+              String unigram = itrWord.nextToken().toLowerCase().replaceAll("[^a-z0-9 ]", "");
               word.set(unigram);
               docID.set(Integer.parseInt(id));
               comKey = new PA2.DocIdUniComKey(docID, word);
